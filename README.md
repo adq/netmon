@@ -39,7 +39,7 @@ bind mount: /data/netmon
 | `daily_summary.py` | Importable module: `loop_forever`, `main` (one-shot prints what would be sent) |
 | `web_server.py` | Importable module: `loop_forever`, `main` (stdlib HTTP dashboard + JSON API) |
 | `flow-analyzer` / `ti-updater` / `daily-summary` / `web-server` | Thin shell shims for ad-hoc CLI use (`docker exec netmon /app/ti-updater`) |
-| `netmon.env` (gitignored) | SMTP creds, MaxMind keys, tunables |
+| `netmon.env` (gitignored, at repo root) | SMTP creds, MaxMind keys, tunables |
 
 ## One-time setup
 
@@ -52,12 +52,12 @@ sudo chown 0:0 /data/netmon
 
 `flows.jsonl` is rotated in-container every `NETMON_FLOWS_ROTATE_SEC` (default 3600 s): the analyzer renames it to `flows.jsonl.<UTC-timestamp>`, SIGHUPs goflow2 to reopen, gzips the archive on the next tick, and prunes oldest beyond `NETMON_FLOWS_RETAIN` (default 4). Manual reopen: `docker kill -s HUP netmon`.
 
-### 2. Create `netmon/netmon.env`
+### 2. Create `netmon.env`
 
 Copy the template and fill in your secrets:
 
 ```sh
-cd /home/adq/housebotscripts/netmon
+cd /path/to/netmon-repo
 cp netmon.env.example netmon.env
 chmod 600 netmon.env
 $EDITOR netmon.env
@@ -73,11 +73,11 @@ Without `NETMON_SMTP_PASSWORD`: alerts are appended to `alerts.jsonl` but no ema
 ### 3. Build and start
 
 ```sh
-cd /home/adq/housebotscripts
-docker-compose up -d --build netmon
+cd /path/to/netmon-repo
+docker-compose up -d --build
 ```
 
-The `update` script (`docker-compose down && docker-compose up -d --pull always --build`) handles future restarts and rebuilds netmon automatically when the source or Dockerfile changes.
+This repo ships its own `docker-compose.yml` (service `netmon`, `build: .`), so it runs standalone. On the housebot host, the parent `housebotscripts` compose instead points at this repo with `build: ../netmon` / `env_file: ../netmon/netmon.env`, and its `update` script (`docker-compose down && docker-compose up -d --pull always --build`) rebuilds netmon automatically when the source or Dockerfile changes. Either way the container, image, and `/data/netmon` state are identical.
 
 ### 4. Configure the MikroTik
 

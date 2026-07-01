@@ -20,7 +20,7 @@ from email.message import EmailMessage
 DATA_DIR = os.environ.get("NETMON_DATA_DIR", "/data/netmon")
 TI_DB = os.path.join(DATA_DIR, "ti.db")
 GEOIP_DIR = os.path.join(DATA_DIR, "geoip")
-USER_AGENT = "housebotscripts-netmon/1.0"
+USER_AGENT = "netmon/1.0"
 
 LOOP_INTERVAL_SEC = int(os.environ.get("NETMON_TI_LOOP_INTERVAL_SEC", "86400"))
 ERROR_EMAIL_INTERVAL_SEC = int(os.environ.get("NETMON_ERROR_EMAIL_INTERVAL_SEC", "3600"))
