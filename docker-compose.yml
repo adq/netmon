@@ -1,0 +1,10 @@
+services:
+  netmon:
+    container_name: netmon
+    build: .
+    image: netmon:latest
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /data/netmon:/data/netmon
+    env_file: netmon.env
