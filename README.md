@@ -97,8 +97,9 @@ Caveat: hardware-offloaded bridge / fast-path traffic is invisible to `traffic-f
 | Variable | Default | Effect |
 |----------|---------|--------|
 | `NETMON_SMTP_PASSWORD` | unset | Resend API key — required to send alerts |
-| `NETMON_SMTP_HOST`/`_PORT`/`_USER`/`_FROM` | smtp.resend.com / 587 / resend / root@admin.lidskialf.net | SMTP overrides |
-| `NETMON_RECIPIENT` | adq@lidskialf.net | Where alerts are emailed |
+| `NETMON_RECIPIENT` | unset (**required**) | Where alerts are emailed — email raises if unset once SMTP is configured |
+| `NETMON_SMTP_FROM` | unset (**required**) | From address — email raises if unset once SMTP is configured |
+| `NETMON_SMTP_HOST`/`_PORT`/`_USER` | smtp.resend.com / 587 / resend | SMTP overrides |
 | `NETMON_SUBJECT_PREFIX` | `[house-net]` | Subject line prefix |
 | `MAXMIND_ACCOUNT_ID`/`MAXMIND_LICENSE_KEY` | unset | Enable GeoIP/ASN enrichment + baseline detection |
 | `NETMON_DAILY_SUMMARY_HOUR_UTC` | `6` | UTC hour (0–23) at which the daily digest of new ASN/country first-sightings is emailed. Empty days are skipped. |

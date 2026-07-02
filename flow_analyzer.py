@@ -7,39 +7,33 @@ import ipaddress
 import json
 import os
 import signal
-import smtplib
 import socket
 import sqlite3
 import sys
 import threading
 import time
 import traceback
-from email.message import EmailMessage
+
+from config import (
+    ALERTS_FILE,
+    DATA_DIR,
+    ERROR_EMAIL_INTERVAL_SEC,
+    FLOWS_FILE,
+    GEOIP_DIR,
+    METRICS_DB,
+    STATE_FILE,
+    SUBJECT_PREFIX,
+    TI_DB,
+    send_email,
+)
 
 
-DATA_DIR = os.environ.get("NETMON_DATA_DIR", "/data/netmon")
-STATE_FILE = os.path.join(DATA_DIR, "state.json")
-ALERTS_FILE = os.path.join(DATA_DIR, "alerts.jsonl")
-TI_DB = os.path.join(DATA_DIR, "ti.db")
-METRICS_DB = os.path.join(DATA_DIR, "metrics.db")
-GEOIP_DIR = os.path.join(DATA_DIR, "geoip")
-FLOWS_FILE = os.environ.get("NETMON_FLOWS_FILE", "/data/netmon/flows.jsonl")
-
-RECIPIENT = os.environ.get("NETMON_RECIPIENT", "adq@lidskialf.net")
 DEDUPE_HOURS = int(os.environ.get("NETMON_DEDUPE_HOURS", "6"))
 DEDUPE_LOW_HOURS = int(os.environ.get("NETMON_DEDUPE_LOW_HOURS", "24"))
 MIN_BYTES = int(os.environ.get("NETMON_MIN_BYTES", "2048"))
 MIN_PACKETS = int(os.environ.get("NETMON_MIN_PACKETS", "2"))
 EMAIL_MIN_SEVERITY = os.environ.get("NETMON_EMAIL_MIN_SEVERITY", "low")
-SUBJECT_PREFIX = os.environ.get("NETMON_SUBJECT_PREFIX", "[house-net]")
 LOOP_INTERVAL_SEC = int(os.environ.get("NETMON_LOOP_INTERVAL_SEC", "120"))
-ERROR_EMAIL_INTERVAL_SEC = int(os.environ.get("NETMON_ERROR_EMAIL_INTERVAL_SEC", "3600"))
-
-SMTP_HOST = os.environ.get("NETMON_SMTP_HOST", "smtp.resend.com")
-SMTP_PORT = int(os.environ.get("NETMON_SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("NETMON_SMTP_USER", "resend")
-SMTP_PASSWORD = os.environ.get("NETMON_SMTP_PASSWORD", "")
-SMTP_FROM = os.environ.get("NETMON_SMTP_FROM", "root@admin.lidskialf.net")
 
 SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2}
 
@@ -382,26 +376,6 @@ def format_email(alert):
         f"matched:      {alert.get('sources') or '(none)'}",
     ])
     return subj, body
-
-
-def send_email(subject, body):
-    if not SMTP_PASSWORD:
-        print("NETMON_SMTP_PASSWORD not set; skipping email send", file=sys.stderr)
-        return False
-    msg = EmailMessage()
-    msg["From"] = SMTP_FROM
-    msg["To"] = RECIPIENT
-    msg["Subject"] = subject
-    msg.set_content(body)
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as s:
-            s.starttls()
-            s.login(SMTP_USER, SMTP_PASSWORD)
-            s.send_message(msg)
-        return True
-    except (smtplib.SMTPException, OSError) as e:
-        print(f"SMTP send failed: {e}", file=sys.stderr)
-        return False
 
 
 def run_once():

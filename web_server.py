@@ -23,13 +23,9 @@ import traceback
 import urllib.parse
 
 import daily_summary
+from config import ALERTS_FILE, DATA_DIR, METRICS_DB, STATE_FILE, TI_DB
 
 
-DATA_DIR = os.environ.get("NETMON_DATA_DIR", "/data/netmon")
-METRICS_DB = os.path.join(DATA_DIR, "metrics.db")
-ALERTS_FILE = os.path.join(DATA_DIR, "alerts.jsonl")
-STATE_FILE = os.path.join(DATA_DIR, "state.json")
-TI_DB = os.path.join(DATA_DIR, "ti.db")
 HOSTNAMES_FILE = os.path.join(DATA_DIR, "hosts")
 
 LISTEN = os.environ.get("NETMON_WEB_LISTEN", "0.0.0.0:49210")

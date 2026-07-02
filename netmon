@@ -17,12 +17,11 @@ import daily_summary
 import flow_analyzer
 import ti_updater
 import web_server
+from config import DATA_DIR, FLOWS_FILE
 
 
 GOFLOW2_BIN = os.environ.get("NETMON_GOFLOW2_BIN", "/usr/local/bin/goflow2")
 GOFLOW2_LISTEN = os.environ.get("NETMON_GOFLOW2_LISTEN", "netflow://:2055")
-FLOWS_FILE = os.environ.get("NETMON_FLOWS_FILE", "/data/netmon/flows.jsonl")
-DATA_DIR = os.environ.get("NETMON_DATA_DIR", "/data/netmon")
 
 FLOWS_ROTATE_SEC = int(os.environ.get("NETMON_FLOWS_ROTATE_SEC", "3600"))
 FLOWS_RETAIN = int(os.environ.get("NETMON_FLOWS_RETAIN", "4"))

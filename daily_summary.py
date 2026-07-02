@@ -11,10 +11,15 @@ import time
 import traceback
 
 import flow_analyzer
+from config import (
+    ALERTS_FILE,
+    DATA_DIR,
+    ERROR_EMAIL_INTERVAL_SEC,
+    SUBJECT_PREFIX,
+    send_email,
+)
 
 
-DATA_DIR = os.environ.get("NETMON_DATA_DIR", "/data/netmon")
-ALERTS_FILE = os.path.join(DATA_DIR, "alerts.jsonl")
 SENTINEL = os.path.join(DATA_DIR, ".last_daily_summary")
 HOUR_UTC = int(os.environ.get("NETMON_DAILY_SUMMARY_HOUR_UTC", "6"))
 
@@ -103,7 +108,7 @@ def format_digest(by_ip, start_ts, end_ts):
     start = datetime.datetime.fromtimestamp(start_ts, tz=datetime.timezone.utc).isoformat()
     end = datetime.datetime.fromtimestamp(end_ts, tz=datetime.timezone.utc).isoformat()
 
-    subj = (f"{flow_analyzer.SUBJECT_PREFIX} daily summary: "
+    subj = (f"{SUBJECT_PREFIX} daily summary: "
             f"{ti_total} TI hit(s), {asn_total} new ASN(s), "
             f"{country_total} new country code(s)")
 
@@ -191,7 +196,7 @@ def loop_forever(stop_event):
             by_ip = summarise_window(window_start, window_end)
             if has_content(by_ip):
                 subj, body = format_digest(by_ip, window_start, window_end)
-                if flow_analyzer.send_email(subj, body):
+                if send_email(subj, body):
                     print(f"[daily-summary] sent: {subj}", file=sys.stderr)
                 else:
                     print("[daily-summary] send_email failed", file=sys.stderr)
@@ -201,9 +206,9 @@ def loop_forever(stop_event):
         except Exception as e:
             traceback.print_exc()
             now = time.time()
-            if now - last_error_email > flow_analyzer.ERROR_EMAIL_INTERVAL_SEC:
-                flow_analyzer.send_email(
-                    f"{flow_analyzer.SUBJECT_PREFIX} ERROR: daily-summary tick failed",
+            if now - last_error_email > ERROR_EMAIL_INTERVAL_SEC:
+                send_email(
+                    f"{SUBJECT_PREFIX} ERROR: daily-summary tick failed",
                     f"Tick raised {type(e).__name__}: {e}\n\n{traceback.format_exc()}",
                 )
                 last_error_email = now

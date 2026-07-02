@@ -5,7 +5,6 @@ import datetime
 import ipaddress
 import os
 import signal
-import smtplib
 import sqlite3
 import subprocess
 import sys
@@ -14,23 +13,20 @@ import time
 import traceback
 import urllib.error
 import urllib.request
-from email.message import EmailMessage
+
+from config import (
+    DATA_DIR,
+    ERROR_EMAIL_INTERVAL_SEC,
+    GEOIP_DIR,
+    SUBJECT_PREFIX,
+    TI_DB,
+    send_email,
+)
 
 
-DATA_DIR = os.environ.get("NETMON_DATA_DIR", "/data/netmon")
-TI_DB = os.path.join(DATA_DIR, "ti.db")
-GEOIP_DIR = os.path.join(DATA_DIR, "geoip")
 USER_AGENT = "netmon/1.0"
 
 LOOP_INTERVAL_SEC = int(os.environ.get("NETMON_TI_LOOP_INTERVAL_SEC", "86400"))
-ERROR_EMAIL_INTERVAL_SEC = int(os.environ.get("NETMON_ERROR_EMAIL_INTERVAL_SEC", "3600"))
-RECIPIENT = os.environ.get("NETMON_RECIPIENT", "adq@lidskialf.net")
-SUBJECT_PREFIX = os.environ.get("NETMON_SUBJECT_PREFIX", "[house-net]")
-SMTP_HOST = os.environ.get("NETMON_SMTP_HOST", "smtp.resend.com")
-SMTP_PORT = int(os.environ.get("NETMON_SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("NETMON_SMTP_USER", "resend")
-SMTP_PASSWORD = os.environ.get("NETMON_SMTP_PASSWORD", "")
-SMTP_FROM = os.environ.get("NETMON_SMTP_FROM", "root@admin.lidskialf.net")
 
 
 FEEDS = [
@@ -175,26 +171,6 @@ def update_geoip():
         print("geoipupdate not installed; skipping GeoIP refresh", file=sys.stderr)
     except subprocess.CalledProcessError as e:
         print(f"geoipupdate failed: {e}", file=sys.stderr)
-
-
-def send_email(subject, body):
-    if not SMTP_PASSWORD:
-        print("NETMON_SMTP_PASSWORD not set; skipping email send", file=sys.stderr)
-        return False
-    msg = EmailMessage()
-    msg["From"] = SMTP_FROM
-    msg["To"] = RECIPIENT
-    msg["Subject"] = subject
-    msg.set_content(body)
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as s:
-            s.starttls()
-            s.login(SMTP_USER, SMTP_PASSWORD)
-            s.send_message(msg)
-        return True
-    except (smtplib.SMTPException, OSError) as e:
-        print(f"SMTP send failed: {e}", file=sys.stderr)
-        return False
 
 
 def run_once():
