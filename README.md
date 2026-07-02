@@ -10,7 +10,7 @@ A multi-stage Docker image bundles the upstream `goflow2` Go binary alongside th
 
 ```
 container netmon
-└── /app/netmon  (Python, PID 1)
+└── /app/netmon.py  (Python, PID 1)
     ├── goflow2 subprocess
     │     -listen=netflow://:2055 -format=json -transport.file=/data/netmon/flows.jsonl
     ├── thread: ti_updater.loop_forever     (daily TI feeds + GeoLite2 refresh)
@@ -33,7 +33,7 @@ bind mount: /data/netmon
 | Path | Role |
 |------|------|
 | `Dockerfile` | Multi-stage: pulls `/goflow2` from `netsampler/goflow2`, base `python:3.12-slim` with `maxminddb` + `geoipupdate` |
-| `netmon` | Python orchestrator (PID 1) — spawns goflow2 + runs both loops in threads |
+| `netmon.py` | Python orchestrator (PID 1) — spawns goflow2 + runs both loops in threads |
 | `flow_analyzer.py` | Importable module: `run_once`, `loop_forever`, `main` |
 | `ti_updater.py` | Importable module: `run_once`, `loop_forever`, `main` |
 | `daily_summary.py` | Importable module: `loop_forever`, `main` (one-shot prints what would be sent) |

@@ -14,14 +14,7 @@ import traceback
 import urllib.error
 import urllib.request
 
-from config import (
-    DATA_DIR,
-    ERROR_EMAIL_INTERVAL_SEC,
-    GEOIP_DIR,
-    SUBJECT_PREFIX,
-    TI_DB,
-    send_email,
-)
+import config as cfg
 
 
 USER_AGENT = "netmon/1.0"
@@ -157,13 +150,13 @@ def update_geoip():
     if not (account and key):
         print("MaxMind credentials not set; skipping GeoIP refresh", file=sys.stderr)
         return
-    os.makedirs(GEOIP_DIR, exist_ok=True)
-    cfg_path = os.path.join(GEOIP_DIR, "GeoIP.conf")
+    os.makedirs(cfg.GEOIP_DIR, exist_ok=True)
+    cfg_path = os.path.join(cfg.GEOIP_DIR, "GeoIP.conf")
     with open(cfg_path, "w") as f:
         f.write(f"AccountID {account}\n")
         f.write(f"LicenseKey {key}\n")
         f.write("EditionIDs GeoLite2-Country GeoLite2-ASN\n")
-        f.write(f"DatabaseDirectory {GEOIP_DIR}\n")
+        f.write(f"DatabaseDirectory {cfg.GEOIP_DIR}\n")
     os.chmod(cfg_path, 0o600)
     try:
         subprocess.check_call(["geoipupdate", "-f", cfg_path])
@@ -174,9 +167,9 @@ def update_geoip():
 
 
 def run_once():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    tmp_db = TI_DB + ".tmp"
-    bak_db = TI_DB + ".bak"
+    os.makedirs(cfg.DATA_DIR, exist_ok=True)
+    tmp_db = cfg.TI_DB + ".tmp"
+    bak_db = cfg.TI_DB + ".bak"
     if os.path.exists(tmp_db):
         os.remove(tmp_db)
 
@@ -201,7 +194,7 @@ def run_once():
             print(f"{source}: {n} rows", file=sys.stderr)
         except Exception as e:
             fail_count += 1
-            kept = carry_forward(con, TI_DB, source)
+            kept = carry_forward(con, cfg.TI_DB, source)
             con.execute(
                 "INSERT OR REPLACE INTO ti_meta (source, last_fetch_ts, row_count, ok, note) "
                 "VALUES (?,?,?,0,?)",
@@ -216,11 +209,11 @@ def run_once():
     con.close()
 
     # Atomic swap. On Linux os.rename is atomic; .bak retained for rollback.
-    if os.path.exists(TI_DB):
+    if os.path.exists(cfg.TI_DB):
         if os.path.exists(bak_db):
             os.remove(bak_db)
-        os.rename(TI_DB, bak_db)
-    os.rename(tmp_db, TI_DB)
+        os.rename(cfg.TI_DB, bak_db)
+    os.rename(tmp_db, cfg.TI_DB)
 
     update_geoip()
 
@@ -237,9 +230,9 @@ def loop_forever(stop_event):
         except Exception as e:
             traceback.print_exc()
             now = time.time()
-            if now - last_error_email > ERROR_EMAIL_INTERVAL_SEC:
-                send_email(
-                    f"{SUBJECT_PREFIX} ERROR: ti-updater tick failed",
+            if now - last_error_email > cfg.ERROR_EMAIL_INTERVAL_SEC:
+                cfg.send_email(
+                    f"{cfg.SUBJECT_PREFIX} ERROR: ti-updater tick failed",
                     f"Tick raised {type(e).__name__}: {e}\n\n{traceback.format_exc()}",
                 )
                 last_error_email = now

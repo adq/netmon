@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 netmon.env
 .omc/
+.pytest_cache/
+.venv/

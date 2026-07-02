@@ -11,17 +11,16 @@ import time
 import traceback
 
 import flow_analyzer
-from config import (
-    ALERTS_FILE,
-    DATA_DIR,
-    ERROR_EMAIL_INTERVAL_SEC,
-    SUBJECT_PREFIX,
-    send_email,
-)
+import config as cfg
 
 
-SENTINEL = os.path.join(DATA_DIR, ".last_daily_summary")
 HOUR_UTC = int(os.environ.get("NETMON_DAILY_SUMMARY_HOUR_UTC", "6"))
+
+
+def _sentinel():
+    """Path of the daily-summary sentinel. Read from cfg.DATA_DIR at call time
+    so tests can redirect the data dir after import."""
+    return os.path.join(cfg.DATA_DIR, ".last_daily_summary")
 
 
 def next_fire_ts(now_ts, last_run_ts):
@@ -49,9 +48,9 @@ def summarise_window(start_ts, end_ts):
     [start_ts, end_ts). TI matches are aggregated per (dst, sources): count +
     total bytes accumulate, severity is the max seen."""
     by_ip = {}
-    if not os.path.exists(ALERTS_FILE):
+    if not os.path.exists(cfg.ALERTS_FILE):
         return by_ip
-    with open(ALERTS_FILE) as f:
+    with open(cfg.ALERTS_FILE) as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -108,7 +107,7 @@ def format_digest(by_ip, start_ts, end_ts):
     start = datetime.datetime.fromtimestamp(start_ts, tz=datetime.timezone.utc).isoformat()
     end = datetime.datetime.fromtimestamp(end_ts, tz=datetime.timezone.utc).isoformat()
 
-    subj = (f"{SUBJECT_PREFIX} daily summary: "
+    subj = (f"{cfg.SUBJECT_PREFIX} daily summary: "
             f"{ti_total} TI hit(s), {asn_total} new ASN(s), "
             f"{country_total} new country code(s)")
 
@@ -176,16 +175,17 @@ def run_once_dry():
 
 def loop_forever(stop_event):
     last_error_email = 0
-    if not os.path.exists(SENTINEL):
+    sentinel = _sentinel()
+    if not os.path.exists(sentinel):
         # Anchor first fire to the next HOUR_UTC after startup, not immediately.
-        open(SENTINEL, "a").close()
+        open(sentinel, "a").close()
     while not stop_event.is_set():
         try:
             now_ts = int(time.time())
             try:
-                last_ts = int(os.path.getmtime(SENTINEL))
+                last_ts = int(os.path.getmtime(sentinel))
             except FileNotFoundError:
-                open(SENTINEL, "a").close()
+                open(sentinel, "a").close()
                 last_ts = now_ts
             fire_ts = next_fire_ts(now_ts, last_ts)
             wait = max(1, fire_ts - now_ts)
@@ -196,19 +196,19 @@ def loop_forever(stop_event):
             by_ip = summarise_window(window_start, window_end)
             if has_content(by_ip):
                 subj, body = format_digest(by_ip, window_start, window_end)
-                if send_email(subj, body):
+                if cfg.send_email(subj, body):
                     print(f"[daily-summary] sent: {subj}", file=sys.stderr)
                 else:
                     print("[daily-summary] send_email failed", file=sys.stderr)
             else:
                 print("[daily-summary] empty window; no email sent", file=sys.stderr)
-            os.utime(SENTINEL, (fire_ts, fire_ts))
+            os.utime(sentinel, (fire_ts, fire_ts))
         except Exception as e:
             traceback.print_exc()
             now = time.time()
-            if now - last_error_email > ERROR_EMAIL_INTERVAL_SEC:
-                send_email(
-                    f"{SUBJECT_PREFIX} ERROR: daily-summary tick failed",
+            if now - last_error_email > cfg.ERROR_EMAIL_INTERVAL_SEC:
+                cfg.send_email(
+                    f"{cfg.SUBJECT_PREFIX} ERROR: daily-summary tick failed",
                     f"Tick raised {type(e).__name__}: {e}\n\n{traceback.format_exc()}",
                 )
                 last_error_email = now
