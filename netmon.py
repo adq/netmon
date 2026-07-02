@@ -17,7 +17,7 @@ import daily_summary
 import flow_analyzer
 import ti_updater
 import web_server
-from config import DATA_DIR, FLOWS_FILE
+import config as cfg
 
 
 GOFLOW2_BIN = os.environ.get("NETMON_GOFLOW2_BIN", "/usr/local/bin/goflow2")
@@ -25,14 +25,23 @@ GOFLOW2_LISTEN = os.environ.get("NETMON_GOFLOW2_LISTEN", "netflow://:2055")
 
 FLOWS_ROTATE_SEC = int(os.environ.get("NETMON_FLOWS_ROTATE_SEC", "3600"))
 FLOWS_RETAIN = int(os.environ.get("NETMON_FLOWS_RETAIN", "4"))
-ARCHIVE_GLOB = f"{FLOWS_FILE}.archived.*"
-ROTATE_SENTINEL = os.path.join(DATA_DIR, ".flows_rotated")
 ROTATE_TICK_SEC = 60
+
+
+def _archive_glob():
+    """Glob for rotated flow archives. Read from cfg.FLOWS_FILE at call time
+    so tests can redirect the data dir after import."""
+    return f"{cfg.FLOWS_FILE}.archived.*"
+
+
+def _rotate_sentinel():
+    """Path of the rotation sentinel. Read from cfg.DATA_DIR at call time."""
+    return os.path.join(cfg.DATA_DIR, ".flows_rotated")
 
 
 def maintain_archives():
     """Prune oldest archives beyond FLOWS_RETAIN. Cheap when nothing to do."""
-    archives = sorted(glob.glob(ARCHIVE_GLOB))
+    archives = sorted(glob.glob(_archive_glob()))
     excess = len(archives) - FLOWS_RETAIN
     for old in archives[:max(0, excess)]:
         try:
@@ -48,30 +57,31 @@ def maybe_rotate_flows(goflow):
     matches the old inode against the archive on its next tick and drains
     any unread tail before reading the new file from byte 0."""
     maintain_archives()
+    sentinel = _rotate_sentinel()
     now = time.time()
     try:
-        last = os.path.getmtime(ROTATE_SENTINEL)
+        last = os.path.getmtime(sentinel)
     except FileNotFoundError:
         # First run: establish baseline so the first rotation lands one interval out.
-        open(ROTATE_SENTINEL, "a").close()
+        open(sentinel, "a").close()
         return
     if now - last < FLOWS_ROTATE_SEC:
         return
     try:
-        size = os.path.getsize(FLOWS_FILE)
+        size = os.path.getsize(cfg.FLOWS_FILE)
     except FileNotFoundError:
         return
     if size == 0:
-        os.utime(ROTATE_SENTINEL, None)
+        os.utime(sentinel, None)
         return
     ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    archive_path = f"{FLOWS_FILE}.archived.{ts}"
-    os.rename(FLOWS_FILE, archive_path)
+    archive_path = f"{cfg.FLOWS_FILE}.archived.{ts}"
+    os.rename(cfg.FLOWS_FILE, archive_path)
     try:
         goflow.send_signal(signal.SIGHUP)
     except ProcessLookupError:
         pass
-    os.utime(ROTATE_SENTINEL, None)
+    os.utime(sentinel, None)
     print(f"[netmon] rotated flows: {archive_path} ({size} bytes)", file=sys.stderr)
 
 
@@ -96,13 +106,13 @@ def thread_runner(name, fn, stop_event):
 
 
 def main():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(os.path.join(DATA_DIR, "geoip"), exist_ok=True)
-    os.makedirs(os.path.dirname(FLOWS_FILE), exist_ok=True)
+    os.makedirs(cfg.DATA_DIR, exist_ok=True)
+    os.makedirs(os.path.join(cfg.DATA_DIR, "geoip"), exist_ok=True)
+    os.makedirs(os.path.dirname(cfg.FLOWS_FILE), exist_ok=True)
 
     # Drop the legacy learn-mode flag if present from a pre-upgrade install.
     try:
-        os.unlink(os.path.join(DATA_DIR, "learn"))
+        os.unlink(os.path.join(cfg.DATA_DIR, "learn"))
     except FileNotFoundError:
         pass
 
@@ -110,7 +120,7 @@ def main():
         GOFLOW2_BIN,
         f"-listen={GOFLOW2_LISTEN}",
         "-format=json",
-        f"-transport.file={FLOWS_FILE}",
+        f"-transport.file={cfg.FLOWS_FILE}",
     ])
     print(f"[netmon] goflow2 pid={goflow.pid}", file=sys.stderr)
 

@@ -14,18 +14,7 @@ import threading
 import time
 import traceback
 
-from config import (
-    ALERTS_FILE,
-    DATA_DIR,
-    ERROR_EMAIL_INTERVAL_SEC,
-    FLOWS_FILE,
-    GEOIP_DIR,
-    METRICS_DB,
-    STATE_FILE,
-    SUBJECT_PREFIX,
-    TI_DB,
-    send_email,
-)
+import config as cfg
 
 
 DEDUPE_HOURS = int(os.environ.get("NETMON_DEDUPE_HOURS", "6"))
@@ -196,8 +185,8 @@ def load_geoip():
         return None, None
     country = None
     asn = None
-    cpath = os.path.join(GEOIP_DIR, "GeoLite2-Country.mmdb")
-    apath = os.path.join(GEOIP_DIR, "GeoLite2-ASN.mmdb")
+    cpath = os.path.join(cfg.GEOIP_DIR, "GeoLite2-Country.mmdb")
+    apath = os.path.join(cfg.GEOIP_DIR, "GeoLite2-ASN.mmdb")
     if os.path.exists(cpath):
         country = maxminddb.open_database(cpath)
     if os.path.exists(apath):
@@ -357,13 +346,13 @@ def format_email(alert):
     sev = alert["severity"].upper()
 
     if alert["kind"] == "ti-match":
-        subj = f"{SUBJECT_PREFIX} {sev}: {alert['internal_ip']} -> {alert['dst_ip']} | {alert['sources']}"
+        subj = f"{cfg.SUBJECT_PREFIX} {sev}: {alert['internal_ip']} -> {alert['dst_ip']} | {alert['sources']}"
     elif alert["kind"] == "new-asn":
-        subj = f"{SUBJECT_PREFIX} {sev}: {alert['internal_ip']} -> new ASN {asn_part}"
+        subj = f"{cfg.SUBJECT_PREFIX} {sev}: {alert['internal_ip']} -> new ASN {asn_part}"
     elif alert["kind"] == "new-country":
-        subj = f"{SUBJECT_PREFIX} {sev}: {alert['internal_ip']} -> new country {cc}"
+        subj = f"{cfg.SUBJECT_PREFIX} {sev}: {alert['internal_ip']} -> new country {cc}"
     else:
-        subj = f"{SUBJECT_PREFIX} {sev}: {alert['internal_ip']} -> {alert['dst_ip']}"
+        subj = f"{cfg.SUBJECT_PREFIX} {sev}: {alert['internal_ip']} -> {alert['dst_ip']}"
 
     body = "\n".join([
         f"timestamp:    {datetime.datetime.now(datetime.timezone.utc).isoformat()}",
@@ -379,23 +368,23 @@ def format_email(alert):
 
 
 def run_once():
-    if not os.path.exists(FLOWS_FILE):
-        print(f"flow file {FLOWS_FILE} does not exist; nothing to do", file=sys.stderr)
+    if not os.path.exists(cfg.FLOWS_FILE):
+        print(f"flow file {cfg.FLOWS_FILE} does not exist; nothing to do", file=sys.stderr)
         return
 
-    os.makedirs(DATA_DIR, exist_ok=True)
-    state = load_state(STATE_FILE)
+    os.makedirs(cfg.DATA_DIR, exist_ok=True)
+    state = load_state(cfg.STATE_FILE)
 
-    if not os.path.exists(TI_DB):
-        print(f"threat-intel DB {TI_DB} does not exist; run ti-updater first", file=sys.stderr)
+    if not os.path.exists(cfg.TI_DB):
+        print(f"threat-intel DB {cfg.TI_DB} does not exist; run ti-updater first", file=sys.stderr)
         return
 
-    ti_con = sqlite3.connect(f"file:{TI_DB}?mode=ro", uri=True)
-    metrics_con = sqlite3.connect(METRICS_DB)
+    ti_con = sqlite3.connect(f"file:{cfg.TI_DB}?mode=ro", uri=True)
+    metrics_con = sqlite3.connect(cfg.METRICS_DB)
     init_metrics_db(metrics_con)
     country_db, asn_db = load_geoip()
 
-    inode, offset, end, archive_drain = get_cursor(state, FLOWS_FILE)
+    inode, offset, end, archive_drain = get_cursor(state, cfg.FLOWS_FILE)
     if inode is None:
         ti_con.close()
         metrics_con.close()
@@ -456,7 +445,7 @@ def run_once():
         consume(a_path, a_start, a_end)
         print(f"drained archive tail: {a_path} [{a_start}-{a_end}]", file=sys.stderr)
 
-    new_offset = consume(FLOWS_FILE, offset, end) if offset < end else end
+    new_offset = consume(cfg.FLOWS_FILE, offset, end) if offset < end else end
     save_cursor(state, inode, new_offset)
 
     alerts = collapse(raw_alerts)
@@ -494,12 +483,12 @@ def run_once():
         })
         if will_email:
             subj, body = format_email(a)
-            if send_email(subj, body):
+            if cfg.send_email(subj, body):
                 sent_count += 1
 
     if alert_records:
-        append_alerts(ALERTS_FILE, alert_records)
-    save_state(state, STATE_FILE)
+        append_alerts(cfg.ALERTS_FILE, alert_records)
+    save_state(state, cfg.STATE_FILE)
     flush_rollup(metrics_con, country_rollup, asn_rollup)
     metrics_con.close()
     ti_con.close()
@@ -521,9 +510,9 @@ def loop_forever(stop_event):
         except Exception as e:
             traceback.print_exc()
             now = time.time()
-            if now - last_error_email > ERROR_EMAIL_INTERVAL_SEC:
-                send_email(
-                    f"{SUBJECT_PREFIX} ERROR: flow-analyzer tick failed",
+            if now - last_error_email > cfg.ERROR_EMAIL_INTERVAL_SEC:
+                cfg.send_email(
+                    f"{cfg.SUBJECT_PREFIX} ERROR: flow-analyzer tick failed",
                     f"Tick raised {type(e).__name__}: {e}\n\n{traceback.format_exc()}",
                 )
                 last_error_email = now

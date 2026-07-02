@@ -24,11 +24,25 @@ Either way: `docker-compose up -d --build netmon`.
 ## Working in this repo
 
 Both Python modules are importable *and* directly runnable (`--loop` for the daemon mode, no
-flag for one-shot). The PID-1 orchestrator (`netmon`) spawns `goflow2` as a subprocess and runs
+flag for one-shot). The PID-1 orchestrator (`netmon.py`) spawns `goflow2` as a subprocess and runs
 the analyzer / TI-updater / daily-summary / web-server / rotator as threads in the same process.
+
+## Tests
+
+The test suite lives next to the code: `test_<module>.py` beside each `<module>.py`, with shared
+fixtures in `conftest.py` and shared doubles/helpers in `test_fakes.py`. Run it with uv:
+
+```
+uv run pytest
+```
+
+uv manages the dev environment (the `pytest` dev dependency declared in `pyproject.toml` under
+`[dependency-groups]`). `pyproject.toml` sets `[tool.uv] package = false` — this is an application
+repo, not a distributable package, so uv never tries to build it. The production container image
+is unaffected: it still uses system Python and `pip install maxminddb` (see `Dockerfile`).
 
 ## Conventions worth keeping
 
-- Python scripts use `#!/usr/bin/python3` (system Python, no venv) and `subprocess.call`/`check_call` for shelling out. There is no test suite, no linter config, no package manifest.
+- Python scripts use `#!/usr/bin/env python3` (system Python in the container, no venv) and `subprocess.call`/`check_call` for shelling out. There is no linter config. The only package manifest is `pyproject.toml`, and it exists solely to drive `uv run pytest` (dev tooling) — it does not make netmon a packaged library.
 - The image installs `maxminddb` via pip and pulls `goflow2` + `geoipupdate` binaries from upstream images via multi-stage `COPY --from=`. No Python deps beyond `maxminddb`; everything else is stdlib.
 - State on disk is load-bearing: `state.json` is atomically rewritten per tick (`.tmp` + `os.replace`), `ti.db` is rebuilt to `.tmp` and atomically swapped (with `.bak` retained for rollback), `flows.jsonl` rotates via rename + SIGHUP to `goflow2`. Preserve those patterns when editing — silent state loss is the failure mode.

@@ -23,10 +23,14 @@ import traceback
 import urllib.parse
 
 import daily_summary
-from config import ALERTS_FILE, DATA_DIR, METRICS_DB, STATE_FILE, TI_DB
+import config as cfg
 
 
-HOSTNAMES_FILE = os.path.join(DATA_DIR, "hosts")
+def _hostnames_file():
+    """Path of the optional static hostname map. Read from cfg.DATA_DIR at
+    call time so tests can redirect the data dir after import."""
+    return os.path.join(cfg.DATA_DIR, "hosts")
+
 
 LISTEN = os.environ.get("NETMON_WEB_LISTEN", "0.0.0.0:49210")
 INDEX_HTML_PATH = os.environ.get(
@@ -62,7 +66,7 @@ def load_hostname_map():
     is fine (returns {})."""
     global _HOSTNAMES_MAP, _HOSTNAMES_MTIME
     try:
-        mtime = os.path.getmtime(HOSTNAMES_FILE)
+        mtime = os.path.getmtime(_hostnames_file())
     except FileNotFoundError:
         if _HOSTNAMES_MAP:
             _HOSTNAMES_MAP = {}
@@ -72,7 +76,7 @@ def load_hostname_map():
         return _HOSTNAMES_MAP
     mapping = {}
     try:
-        with open(HOSTNAMES_FILE) as f:
+        with open(_hostnames_file()) as f:
             for line in f:
                 line = line.split("#", 1)[0].strip()
                 if not line:
@@ -81,7 +85,7 @@ def load_hostname_map():
                 if len(parts) >= 2:
                     mapping[parts[0]] = parts[1]
     except OSError as e:
-        print(f"[web-server] failed to read {HOSTNAMES_FILE}: {e}", file=sys.stderr)
+        print(f"[web-server] failed to read {_hostnames_file()}: {e}", file=sys.stderr)
         return _HOSTNAMES_MAP
     _HOSTNAMES_MAP = mapping
     _HOSTNAMES_MTIME = mtime
@@ -156,7 +160,7 @@ def parse_listen(spec):
 
 
 def open_metrics_ro():
-    return sqlite3.connect(f"file:{METRICS_DB}?mode=ro", uri=True)
+    return sqlite3.connect(f"file:{cfg.METRICS_DB}?mode=ro", uri=True)
 
 
 def _qs_str(qs, key, default=""):
@@ -173,13 +177,13 @@ def _qs_int(qs, key, default):
 def api_health():
     out = {"ok": True}
     try:
-        out["last_state_write_ts"] = int(os.path.getmtime(STATE_FILE))
+        out["last_state_write_ts"] = int(os.path.getmtime(cfg.STATE_FILE))
     except FileNotFoundError:
         out["last_state_write_ts"] = None
     feeds = []
-    if os.path.exists(TI_DB):
+    if os.path.exists(cfg.TI_DB):
         try:
-            con = sqlite3.connect(f"file:{TI_DB}?mode=ro", uri=True)
+            con = sqlite3.connect(f"file:{cfg.TI_DB}?mode=ro", uri=True)
             for row in con.execute(
                 "SELECT source, ok, row_count, last_fetch_ts FROM ti_meta ORDER BY source"
             ):
@@ -195,7 +199,7 @@ def api_health():
 
 
 def api_devices(_qs):
-    if not os.path.exists(METRICS_DB):
+    if not os.path.exists(cfg.METRICS_DB):
         return {"devices": []}
     end = datetime.datetime.now(datetime.timezone.utc).date()
     start = end - datetime.timedelta(days=30)
@@ -266,7 +270,7 @@ def api_summary(qs):
 
     countries = []
     asns = []
-    if os.path.exists(METRICS_DB):
+    if os.path.exists(cfg.METRICS_DB):
         con = open_metrics_ro()
         countries = _country_breakdown(con, start_date, end_date, device)
         asns = _asn_breakdown(con, start_date, end_date, device)
@@ -305,7 +309,7 @@ def api_timeseries(qs):
     start_date = end_date - datetime.timedelta(days=days - 1)
 
     by_date = {}
-    if os.path.exists(METRICS_DB):
+    if os.path.exists(cfg.METRICS_DB):
         con = open_metrics_ro()
         # Sum from country_daily — every flow is recorded there exactly once,
         # so totals match the sum across asn_daily.
@@ -346,8 +350,8 @@ def api_alerts(qs):
     start_ts = end_ts - days * 86400
 
     matched = []
-    if os.path.exists(ALERTS_FILE):
-        with open(ALERTS_FILE) as f:
+    if os.path.exists(cfg.ALERTS_FILE):
+        with open(cfg.ALERTS_FILE) as f:
             for line in f:
                 line = line.strip()
                 if not line:

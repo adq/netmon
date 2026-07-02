@@ -1,0 +1,21 @@
+# This manifest exists solely to drive the dev/test workflow with uv. netmon
+# is an application repo, not a distributable library, so [tool.uv] package =
+# false tells uv never to build it. The production container image is unaffected
+# and still uses system Python + `pip install maxminddb` (see Dockerfile).
+[project]
+name = "netmon"
+version = "0.1.0"
+description = "Self-contained MikroTik outbound connection monitor"
+requires-python = ">=3.12"
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
