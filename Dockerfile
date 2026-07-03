@@ -9,7 +9,7 @@ COPY --from=goflow2_src /goflow2 /usr/local/bin/goflow2
 COPY --from=geoipupdate_src /usr/bin/geoipupdate /usr/local/bin/geoipupdate
 
 WORKDIR /app
-COPY flow_analyzer.py ti_updater.py daily_summary.py web_server.py netmon.py flow-analyzer ti-updater daily-summary web-server index.html /app/
+COPY config.py flow_analyzer.py ti_updater.py daily_summary.py web_server.py netmon.py flow-analyzer ti-updater daily-summary web-server index.html /app/
 RUN chmod +x /app/netmon.py /app/flow-analyzer /app/ti-updater /app/daily-summary /app/web-server
 
 ENV NETMON_DATA_DIR=/data/netmon \
